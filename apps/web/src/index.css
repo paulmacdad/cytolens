@@ -1,0 +1,47 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bg-app: #f0f2f5;
+    --bg-panel: #ffffff;
+    --bg-surface: #f8f9fb;
+    --border-subtle: #e2e5ea;
+    --border-default: #c8cdd6;
+    --text-primary: #1a1d23;
+    --text-secondary: #555e6e;
+    --text-muted: #8a93a3;
+    --accent: #0ea5b8;
+  }
+
+  * {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Thin, non-intrusive scrollbars */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #c8cdd6; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #9aa2b1; }
+}
+
+@layer components {
+  .panel-card {
+    @apply bg-white border border-gray-200 rounded-lg shadow-sm;
+  }
+
+  .toolbar-btn {
+    @apply px-2.5 py-1.5 text-xs font-medium text-gray-600 rounded hover:bg-gray-100
+           active:bg-gray-200 transition-colors duration-100 flex items-center gap-1.5;
+  }
+
+  .toolbar-btn-active {
+    @apply bg-accent-500 text-white hover:bg-accent-600;
+  }
+
+  .plot-container {
+    @apply relative bg-white rounded border border-gray-200 overflow-hidden;
+  }
+}

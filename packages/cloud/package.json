@@ -1,0 +1,19 @@
+{
+  "name": "@cytoflow/cloud",
+  "version": "0.1.0",
+  "description": "Optional Supabase backend. Experiment metadata sync, team collaboration. FCS files never touch cloud.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.43.4"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5"
+  }
+}

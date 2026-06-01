@@ -1,0 +1,17 @@
+{
+  "name": "@cytoflow/wasm",
+  "version": "0.1.0",
+  "description": "Rust/WASM performance modules: logicle, compensation, gating, density.",
+  "type": "module",
+  "main": "./ts/index.js",
+  "types": "./ts/index.d.ts",
+  "scripts": {
+    "build:wasm": "wasm-pack build --target web --out-dir pkg",
+    "build:ts": "tsc",
+    "build": "npm run build:wasm && npm run build:ts",
+    "test": "echo 'Run wasm-pack test --node for WASM tests'"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5"
+  }
+}
