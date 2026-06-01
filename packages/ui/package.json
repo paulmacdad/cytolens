@@ -1,5 +1,5 @@
 {
-  "name": "@cytoflow/ui",
+  "name": "@cytolens/ui",
   "version": "0.1.0",
   "description": "React component library: scatter plots, gating canvas, workspace composer.",
   "type": "module",
@@ -28,7 +28,7 @@
     "react-dom": "^18.0.0"
   },
   "dependencies": {
-    "@cytoflow/core": "workspace:*"
+    "@cytolens/core": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.4.5",

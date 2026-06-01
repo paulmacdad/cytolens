@@ -1,5 +1,5 @@
 {
-  "name": "@cytoflow/core",
+  "name": "@cytolens/core",
   "version": "0.1.0",
   "description": "FCS parsing pipeline, gating engine, transforms, statistics. Pure TypeScript, no DOM dependency.",
   "type": "module",

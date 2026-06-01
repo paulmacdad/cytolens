@@ -6,8 +6,8 @@
  */
 
 import { create } from 'zustand';
-import { createExperiment, createSample, parseFCS } from '@cytoflow/core';
-import type { Experiment, Sample, Gate, GateNode, GateResult } from '@cytoflow/core';
+import { createExperiment, createSample, parseFCS } from '@cytolens/core';
+import type { Experiment, Sample, Gate, GateNode, GateResult } from '@cytolens/core';
 
 export interface ExperimentState {
   experiment: Experiment | null;

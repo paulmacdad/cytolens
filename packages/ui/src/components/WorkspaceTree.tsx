@@ -12,7 +12,7 @@
  */
 
 import React, { useState, useCallback } from 'react';
-import type { Sample, GateNode, GateResult } from '@cytoflow/core';
+import type { Sample, GateNode, GateResult } from '@cytolens/core';
 
 export interface WorkspaceTreeProps {
   samples: Sample[];

@@ -6,7 +6,7 @@
  */
 
 import React, { useMemo } from 'react';
-import type { EventMatrix, LogicleTransform } from '@cytoflow/core';
+import type { EventMatrix, LogicleTransform } from '@cytolens/core';
 
 export interface HistogramSeries {
   events: EventMatrix;

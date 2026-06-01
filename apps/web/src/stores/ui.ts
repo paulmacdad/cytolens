@@ -6,7 +6,7 @@
  */
 
 import { create } from 'zustand';
-import type { DrawMode } from '@cytoflow/ui';
+import type { DrawMode } from '@cytolens/ui';
 
 export type ActiveTool = DrawMode;
 export type PanelId = 'workspace' | 'properties' | 'statistics';

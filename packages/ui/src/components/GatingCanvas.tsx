@@ -11,7 +11,7 @@
  */
 
 import React, { useRef, useEffect, useCallback, useState } from 'react';
-import type { Gate, Point2D } from '@cytoflow/core';
+import type { Gate, Point2D } from '@cytolens/core';
 
 export type DrawMode = 'polygon' | 'rectangle' | 'ellipse' | 'select' | 'none';
 

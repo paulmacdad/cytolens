@@ -8,7 +8,7 @@
  */
 
 import React from 'react';
-import type { Gate, GateResult, Sample } from '@cytoflow/core';
+import type { Gate, GateResult, Sample } from '@cytolens/core';
 
 export interface ControlPanelProps {
   selectedSample?: Sample;

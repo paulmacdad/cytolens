@@ -21,9 +21,9 @@
  */
 
 import React, { useRef, useEffect, useCallback, useState } from 'react';
-import type { EventMatrix } from '@cytoflow/core';
-import type { Gate } from '@cytoflow/core';
-import type { LogicleTransform } from '@cytoflow/core';
+import type { EventMatrix } from '@cytolens/core';
+import type { Gate } from '@cytolens/core';
+import type { LogicleTransform } from '@cytolens/core';
 
 export interface ScatterPlotProps {
   /** Event data matrix */

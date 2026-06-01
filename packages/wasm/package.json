@@ -1,5 +1,5 @@
 {
-  "name": "@cytoflow/wasm",
+  "name": "@cytolens/wasm",
   "version": "0.1.0",
   "description": "Rust/WASM performance modules: logicle, compensation, gating, density.",
   "type": "module",

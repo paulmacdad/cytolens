@@ -1,5 +1,5 @@
 {
-  "name": "@cytoflow/cloud",
+  "name": "@cytolens/cloud",
   "version": "0.1.0",
   "description": "Optional Supabase backend. Experiment metadata sync, team collaboration. FCS files never touch cloud.",
   "type": "module",

@@ -1,7 +1,7 @@
 /**
  * WasmGatingEngine — TypeScript wrapper for Rust polygon_gate WASM function.
  *
- * Falls back to the TS implementation in @cytoflow/core if WASM is unavailable.
+ * Falls back to the TS implementation in @cytolens/core if WASM is unavailable.
  */
 
 export interface WasmGatingEngine {

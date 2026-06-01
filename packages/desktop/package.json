@@ -1,5 +1,5 @@
 {
-  "name": "@cytoflow/desktop",
+  "name": "@cytolens/desktop",
   "version": "0.1.0",
   "description": "Tauri v2 desktop app shell. Wraps the web app with native file system access.",
   "type": "module",

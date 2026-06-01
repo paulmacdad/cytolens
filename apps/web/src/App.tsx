@@ -16,7 +16,7 @@
  */
 
 import React, { useCallback, useRef, useState } from 'react';
-import { WorkspaceTree, ControlPanel, ScatterPlot, HistogramPlot } from '@cytoflow/ui';
+import { WorkspaceTree, ControlPanel, ScatterPlot, HistogramPlot } from '@cytolens/ui';
 import {
   useExperimentStore,
   useSelectedSample,
@@ -24,9 +24,9 @@ import {
   useSampleList,
 } from './stores/experiment.js';
 import { useUIStore } from './stores/ui.js';
-import type { DrawMode } from '@cytoflow/ui';
-import type { EventMatrix } from '@cytoflow/core';
-import { createLogicle, LOGICLE_PRESETS } from '@cytoflow/core';
+import type { DrawMode } from '@cytolens/ui';
+import type { EventMatrix } from '@cytolens/core';
+import { createLogicle, LOGICLE_PRESETS } from '@cytolens/core';
 
 // ---------------------------------------------------------------------------
 // Toolbar

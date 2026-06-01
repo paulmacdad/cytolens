@@ -9,8 +9,8 @@
  * No external API required — all computation is local.
  */
 
-import type { EventMatrix } from '@cytoflow/core';
-import type { RectangleGate, PolygonGate } from '@cytoflow/core';
+import type { EventMatrix } from '@cytolens/core';
+import type { RectangleGate, PolygonGate } from '@cytolens/core';
 
 export interface HeuristicGateResult {
   gates: Array<RectangleGate | PolygonGate>;

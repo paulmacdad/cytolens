@@ -1,5 +1,5 @@
 {
-  "name": "@cytoflow/ai",
+  "name": "@cytolens/ai",
   "version": "0.1.0",
   "description": "AI gating and interpretation layer. Local heuristics + LLM providers.",
   "type": "module",
@@ -12,7 +12,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@cytoflow/core": "workspace:*"
+    "@cytolens/core": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.4.5",
