@@ -37,3 +37,12 @@ export { createExperiment } from './models/experiment.js';
 export type { Experiment, CompensationMatrix, TransformConfig, ExperimentSettings } from './models/experiment.js';
 export { createSample } from './models/sample.js';
 export type { Sample, SampleStatus, SampleQCFlags } from './models/sample.js';
+
+// Future modules (files may not exist yet — created by parallel agents)
+export * from './compensation/index.js';
+export * from './stats/index.js';
+export * from './qc/index.js';
+export * from './utils/index.js';
+export * from './demo/index.js';
+export * from './dimred/index.js';
+export * from './compat/index.js';

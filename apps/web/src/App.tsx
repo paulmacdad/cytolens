@@ -1,22 +1,34 @@
 /**
- * App — root component.
+ * App — root component for CytoLens.
  *
- * Three-panel layout:
- *   ┌──────────────────────────────────────────┐
- *   │  Toolbar                                 │
- *   ├─────────┬────────────────────┬───────────┤
- *   │ Sample/ │   Plot area        │ Properties│
- *   │ Gate    │   (2 plots side    │ / controls│
- *   │ tree    │    by side)        │           │
- *   │         │                   │           │
- *   └─────────┴────────────────────┴───────────┘
+ * Layout:
  *
- * Medium-gray theme — not full dark, not pure white.
- * SnapGene-quality information density.
+ *   ┌─────────────────────────────────────────────────────┐
+ *   │  Toolbar                                            │
+ *   ├─────────┬───────────────────────────┬──────────────┤
+ *   │ Workspace│  WorksheetGrid           │  Right panel │
+ *   │ Tree     │  (multi-plot grid)       │  (ControlPanel│
+ *   │  w-52   │                           │  or StatsTable)
+ *   │         │                           │   w-64       │
+ *   ├─────────┴───────────────────────────┴──────────────┤
+ *   │  Status bar                                         │
+ *   └─────────────────────────────────────────────────────┘
+ *
+ * Welcome state (no data): full-screen centered welcome screen.
  */
 
-import React, { useCallback, useRef, useState } from 'react';
-import { WorkspaceTree, ControlPanel, ScatterPlot, HistogramPlot } from '@cytolens/ui';
+import React, {
+  useCallback,
+  useRef,
+  useState,
+  useMemo,
+} from 'react';
+import {
+  WorkspaceTree,
+  ControlPanel,
+  WorksheetGrid,
+} from '@cytolens/ui';
+import type { PlotLayout } from '@cytolens/ui';
 import {
   useExperimentStore,
   useSelectedSample,
@@ -26,248 +38,397 @@ import {
 import { useUIStore } from './stores/ui.js';
 import type { DrawMode } from '@cytolens/ui';
 import type { EventMatrix } from '@cytolens/core';
-import { createLogicle, LOGICLE_PRESETS } from '@cytolens/core';
+import { statsToCSV, downloadCSV } from '@cytolens/core';
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts.js';
+
+// ---------------------------------------------------------------------------
+// CytoLens animated dot-cloud SVG logo
+// ---------------------------------------------------------------------------
+
+const CytoLensLogo: React.FC<{ size?: number; className?: string; animated?: boolean }> = ({
+  size = 24,
+  className = '',
+  animated = false,
+}) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 48 48"
+    className={className}
+    fill="none"
+    aria-label="CytoLens logo"
+  >
+    <circle cx="24" cy="24" r="20" stroke="#0d9488" strokeWidth="2" opacity="0.9" />
+    <circle cx="24" cy="24" r="13" stroke="#14b8a6" strokeWidth="1.2" opacity="0.5" />
+    <circle cx="24" cy="24" r="3.5" fill="#0d9488">
+      {animated && <animate attributeName="fill" values="#0d9488;#14b8a6;#2dd4bf;#0d9488" dur="3s" repeatCount="indefinite" />}
+    </circle>
+    <circle cx="17" cy="20" r="2.5" fill="#14b8a6">
+      {animated && <animate attributeName="fill" values="#14b8a6;#2dd4bf;#0d9488;#14b8a6" dur="3.4s" repeatCount="indefinite" />}
+    </circle>
+    <circle cx="31" cy="20" r="2.5" fill="#14b8a6">
+      {animated && <animate attributeName="fill" values="#2dd4bf;#0d9488;#14b8a6;#2dd4bf" dur="2.8s" repeatCount="indefinite" />}
+    </circle>
+    <circle cx="20" cy="30" r="2" fill="#2dd4bf">
+      {animated && <animate attributeName="fill" values="#0d9488;#14b8a6;#2dd4bf;#0d9488" dur="4s" repeatCount="indefinite" />}
+    </circle>
+    <circle cx="30" cy="30" r="2" fill="#2dd4bf">
+      {animated && <animate attributeName="fill" values="#2dd4bf;#0d9488;#14b8a6;#2dd4bf" dur="3.2s" repeatCount="indefinite" />}
+    </circle>
+    <circle cx="15" cy="28" r="1.6" fill="#5eead4">
+      {animated && <animate attributeName="fill" values="#5eead4;#0d9488;#2dd4bf;#5eead4" dur="5s" repeatCount="indefinite" />}
+    </circle>
+    <circle cx="33" cy="27" r="1.6" fill="#5eead4">
+      {animated && <animate attributeName="fill" values="#5eead4;#2dd4bf;#0d9488;#5eead4" dur="4.5s" repeatCount="indefinite" />}
+    </circle>
+    <circle cx="26" cy="16" r="1.4" fill="#99f6e4">
+      {animated && <animate attributeName="fill" values="#99f6e4;#5eead4;#14b8a6;#99f6e4" dur="3.8s" repeatCount="indefinite" />}
+    </circle>
+    <circle cx="21" cy="16" r="1.2" fill="#99f6e4">
+      {animated && <animate attributeName="fill" values="#14b8a6;#99f6e4;#5eead4;#14b8a6" dur="4.2s" repeatCount="indefinite" />}
+    </circle>
+    <circle cx="35" cy="22" r="1.2" fill="#ccfbf1">
+      {animated && <animate attributeName="fill" values="#ccfbf1;#5eead4;#2dd4bf;#ccfbf1" dur="6s" repeatCount="indefinite" />}
+    </circle>
+    <circle cx="13" cy="23" r="1.2" fill="#ccfbf1">
+      {animated && <animate attributeName="fill" values="#2dd4bf;#ccfbf1;#5eead4;#2dd4bf" dur="5.5s" repeatCount="indefinite" />}
+    </circle>
+  </svg>
+);
+
+// ---------------------------------------------------------------------------
+// Tool definitions
+// ---------------------------------------------------------------------------
+
+const TOOLS: Array<{ id: DrawMode; label: string; icon: string; title: string; key: string }> = [
+  { id: 'select',    label: 'Select',    icon: '↖',  title: 'Select / Pan (V)', key: 'V' },
+  { id: 'polygon',   label: 'Polygon',   icon: '⬡',  title: 'Polygon gate (P)', key: 'P' },
+  { id: 'rectangle', label: 'Rect',      icon: '▭',  title: 'Rectangle gate (R)', key: 'R' },
+  { id: 'ellipse',   label: 'Ellipse',   icon: '⬭',  title: 'Ellipse gate (E)', key: 'E' },
+];
 
 // ---------------------------------------------------------------------------
 // Toolbar
 // ---------------------------------------------------------------------------
 
-const TOOLS: Array<{ id: DrawMode; label: string; icon: string; title: string }> = [
-  { id: 'select', label: 'Select', icon: '↖', title: 'Select / Pan (V)' },
-  { id: 'polygon', label: 'Polygon', icon: '⬟', title: 'Draw polygon gate (P)' },
-  { id: 'rectangle', label: 'Rectangle', icon: '⬜', title: 'Draw rectangle gate (R)' },
-  { id: 'ellipse', label: 'Ellipse', icon: '⭕', title: 'Draw ellipse gate (E)' },
-];
-
-const Toolbar: React.FC = () => {
+const Toolbar: React.FC<{
+  onOpenFile: () => void;
+  onLoadDemo: () => void;
+  onExportPNG: () => void;
+  onExportCSV: () => void;
+  hasData: boolean;
+}> = ({ onOpenFile, onLoadDemo, onExportPNG, onExportCSV, hasData }) => {
   const activeTool = useUIStore(s => s.activeTool);
   const setActiveTool = useUIStore(s => s.setActiveTool);
-  const loadFCSFile = useExperimentStore(s => s.loadFCSFile);
-  const isLoading = useExperimentStore(s => s.isLoading);
-  const toggleLeft = useUIStore(s => s.togglePanel);
-
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files) return;
-    Array.from(files).forEach(f => loadFCSFile(f));
-    e.target.value = '';
-  }, [loadFCSFile]);
+  const isLeftOpen = useUIStore(s => s.isLeftPanelOpen);
+  const isRightOpen = useUIStore(s => s.isRightPanelOpen);
+  const togglePanel = useUIStore(s => s.togglePanel);
 
   return (
-    <div className="h-10 flex items-center gap-1 px-3 bg-white border-b border-gray-200 flex-shrink-0">
-      {/* Brand */}
-      <div className="flex items-center gap-2 mr-3">
-        <span className="text-accent-600 font-bold text-sm tracking-tight">CytoLens</span>
-        <span className="hidden sm:block text-xs text-gray-400">|</span>
+    <div className="flex items-center gap-1 px-3 h-10 bg-white border-b border-gray-200 flex-shrink-0">
+      <div className="flex items-center gap-2 mr-2">
+        <CytoLensLogo size={22} />
+        <span className="text-sm font-bold text-gray-800 tracking-tight select-none">CytoLens</span>
       </div>
-
-      {/* File actions */}
+      <div className="h-4 w-px bg-gray-200 mx-1" />
       <button
-        className="toolbar-btn"
-        title="Open FCS files"
-        onClick={() => fileInputRef.current?.click()}
-        disabled={isLoading}
+        className="flex items-center gap-1 text-xs px-2 py-1 rounded hover:bg-gray-100 text-gray-600 transition-colors"
+        onClick={onOpenFile}
+        title="Open FCS file (Ctrl+O)"
       >
-        <span>📂</span>
-        <span className="hidden sm:inline">{isLoading ? 'Loading…' : 'Open'}</span>
+        <span>📂</span> Open
       </button>
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept=".fcs,.lmd"
-        multiple
-        style={{ display: 'none' }}
-        onChange={handleFileChange}
-      />
-
-      <div className="w-px h-5 bg-gray-200 mx-1" />
-
-      {/* Gate tools */}
-      {TOOLS.map(tool => (
-        <button
-          key={tool.id}
-          className={`toolbar-btn ${activeTool === tool.id ? 'toolbar-btn-active' : ''}`}
-          title={tool.title}
-          onClick={() => setActiveTool(tool.id)}
-        >
-          <span>{tool.icon}</span>
-          <span className="hidden md:inline">{tool.label}</span>
-        </button>
-      ))}
-
-      <div className="flex-1" />
-
-      {/* View toggles */}
       <button
-        className="toolbar-btn"
-        title="Toggle left panel"
-        onClick={() => toggleLeft('left')}
+        className="flex items-center gap-1 text-xs px-2 py-1 rounded hover:bg-teal-50 text-teal-600 font-medium transition-colors"
+        onClick={onLoadDemo}
+        title="Load PBMC demo data (Ctrl+D)"
+      >
+        <span>🧪</span> Demo
+      </button>
+      <div className="h-4 w-px bg-gray-200 mx-1" />
+      <div className="flex gap-0.5">
+        {TOOLS.map(t => (
+          <button
+            key={t.id}
+            className={`w-7 h-7 flex items-center justify-center rounded text-sm transition-colors ${
+              activeTool === t.id
+                ? 'bg-teal-600 text-white shadow-sm'
+                : 'text-gray-500 hover:bg-gray-100'
+            }`}
+            onClick={() => setActiveTool(t.id)}
+            title={t.title}
+          >
+            {t.icon}
+          </button>
+        ))}
+      </div>
+      <div className="h-4 w-px bg-gray-200 mx-1" />
+      <button
+        className={`w-7 h-7 flex items-center justify-center rounded text-xs transition-colors ${
+          isLeftOpen ? 'bg-gray-100 text-gray-700' : 'text-gray-400 hover:bg-gray-100'
+        }`}
+        onClick={() => togglePanel('left')}
+        title="Toggle workspace panel"
       >
         ◧
       </button>
       <button
-        className="toolbar-btn"
-        title="Toggle right panel"
-        onClick={() => toggleLeft('right')}
+        className={`w-7 h-7 flex items-center justify-center rounded text-xs transition-colors ${
+          isRightOpen ? 'bg-gray-100 text-gray-700' : 'text-gray-400 hover:bg-gray-100'
+        }`}
+        onClick={() => togglePanel('right')}
+        title="Toggle properties panel"
       >
         ◨
+      </button>
+      <div className="flex-1" />
+      {hasData && (
+        <>
+          <button
+            className="text-xs px-2 py-1 rounded hover:bg-gray-100 text-gray-500 transition-colors"
+            onClick={onExportPNG}
+            title="Export PNG"
+          >
+            📷 PNG
+          </button>
+          <button
+            className="text-xs px-2 py-1 rounded hover:bg-gray-100 text-gray-500 transition-colors"
+            onClick={onExportCSV}
+            title="Export CSV"
+          >
+            📊 CSV
+          </button>
+        </>
+      )}
+      <button
+        className="w-7 h-7 flex items-center justify-center rounded text-gray-300 hover:text-gray-500 hover:bg-gray-100 text-sm transition-colors"
+        title="AI assistant (coming soon)"
+        disabled
+      >
+        ✦
       </button>
     </div>
   );
 };
 
 // ---------------------------------------------------------------------------
-// Plot area — two scatter plots side by side
+// Feature cards data for welcome screen
 // ---------------------------------------------------------------------------
 
-const PlotArea: React.FC<{ sample: ReturnType<typeof useSelectedSample> }> = ({ sample }) => {
-  const logicle = createLogicle(LOGICLE_PRESETS.BD_18BIT);
-
-  if (!sample || sample.status !== 'ready' || !sample.events || !sample.metadata) {
-    return (
-      <div className="flex-1 flex flex-col items-center justify-center bg-gray-50 text-gray-400 gap-3">
-        <div className="text-5xl opacity-40">🔬</div>
-        <div className="text-sm font-medium">No data loaded</div>
-        <div className="text-xs">Open an FCS file to begin analysis</div>
-      </div>
-    );
-  }
-
-  const channels = sample.metadata.channels;
-  const chNames = channels.map(c => c.name);
-
-  const matrix: EventMatrix = {
-    data: sample.events,
-    channels: chNames,
-    eventCount: sample.eventCount,
-  };
-
-  // Pick default channels — FSC-A vs SSC-A first, then first two channels
-  const fscIdx = chNames.findIndex(n => n.toUpperCase().includes('FSC'));
-  const sscIdx = chNames.findIndex(n => n.toUpperCase().includes('SSC'));
-  const xCh1 = chNames[fscIdx !== -1 ? fscIdx : 0] ?? chNames[0] ?? 'Ch1';
-  const yCh1 = chNames[sscIdx !== -1 ? sscIdx : 1] ?? chNames[1] ?? 'Ch2';
-  const xCh2 = chNames[2] ?? xCh1;
-  const yCh2 = chNames[3] ?? yCh1;
-
-  return (
-    <div className="flex-1 overflow-auto bg-gray-50 p-4">
-      <div className="flex gap-4 flex-wrap">
-        {/* Plot 1: FSC vs SSC */}
-        <div className="plot-container p-2">
-          <div className="text-xs text-gray-500 font-medium mb-1 px-1">
-            {xCh1} / {yCh1}
-          </div>
-          <div className="relative">
-            <ScatterPlot
-              events={matrix}
-              xChannel={xCh1}
-              yChannel={yCh1}
-              width={380}
-              height={360}
-              alpha={0.35}
-              pointSize={1.2}
-              color="#2563eb"
-            />
-          </div>
-        </div>
-
-        {/* Plot 2: next two channels */}
-        <div className="plot-container p-2">
-          <div className="text-xs text-gray-500 font-medium mb-1 px-1">
-            {xCh2} / {yCh2}
-          </div>
-          <div className="relative">
-            <ScatterPlot
-              events={matrix}
-              xChannel={xCh2}
-              yChannel={yCh2}
-              xTransform={logicle}
-              yTransform={logicle}
-              width={380}
-              height={360}
-              alpha={0.35}
-              pointSize={1.2}
-              color="#16a34a"
-            />
-          </div>
-        </div>
-
-        {/* Histogram — channel 0 */}
-        <div className="plot-container p-2">
-          <div className="text-xs text-gray-500 font-medium mb-1 px-1">
-            Distribution — {xCh1}
-          </div>
-          <HistogramPlot
-            series={[{
-              events: matrix,
-              channel: xCh1,
-              color: '#2563eb',
-              label: xCh1,
-            }]}
-            width={380}
-            height={180}
-            bins={200}
-            filled
-          />
-        </div>
-      </div>
-    </div>
-  );
-};
+const FEATURE_CARDS = [
+  {
+    key: 'webgl',
+    title: 'WebGL rendering',
+    desc: 'Millions of events rendered instantly in the browser, no server needed.',
+  },
+  {
+    key: 'import',
+    title: 'FlowJo + GatingML import',
+    desc: 'Import gates from .wsp workspaces and GatingML files. Hierarchies preserved.',
+  },
+  {
+    key: 'oss',
+    title: 'Open source & free',
+    desc: 'No subscriptions, no data uploads. Runs entirely in your browser.',
+  },
+];
 
 // ---------------------------------------------------------------------------
-// Welcome / drop zone overlay
+// Welcome screen
 // ---------------------------------------------------------------------------
 
-const WelcomeOverlay: React.FC<{ onDrop: (files: FileList) => void }> = ({ onDrop }) => {
+const WelcomeScreen: React.FC<{
+  onOpenFile: () => void;
+  onLoadDemo: () => void;
+  onDrop: (files: FileList) => void;
+}> = ({ onOpenFile, onLoadDemo, onDrop }) => {
   const [dragActive, setDragActive] = useState(false);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     setDragActive(true);
   };
-
   const handleDragLeave = () => setDragActive(false);
-
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragActive(false);
-    if (e.dataTransfer.files.length > 0) {
-      onDrop(e.dataTransfer.files);
-    }
+    if (e.dataTransfer.files.length > 0) onDrop(e.dataTransfer.files);
   };
 
   return (
     <div
-      className={`absolute inset-0 flex flex-col items-center justify-center transition-colors ${
-        dragActive ? 'bg-accent-50 border-2 border-dashed border-accent-400' : 'bg-gray-50'
+      className={`flex-1 flex flex-col items-center justify-center p-8 overflow-y-auto transition-colors ${
+        dragActive ? 'bg-teal-50' : 'bg-gray-50'
       }`}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      <div className="text-center max-w-sm">
-        <div className="text-6xl mb-4 opacity-30">🔬</div>
-        <h2 className="text-xl font-semibold text-gray-600 mb-2">CytoLens</h2>
-        <p className="text-sm text-gray-400 mb-6">See every cell clearly.</p>
-        <div className={`border-2 border-dashed rounded-xl p-8 transition-colors ${
-          dragActive ? 'border-accent-400 bg-accent-50' : 'border-gray-300 bg-white'
-        }`}>
-          <div className="text-2xl mb-2">{dragActive ? '📥' : '📂'}</div>
-          <p className="text-sm font-medium text-gray-600 mb-1">
-            {dragActive ? 'Drop to open' : 'Drop FCS files here'}
+      <div className="flex flex-col items-center w-full max-w-xl">
+
+        {/* Animated logo */}
+        <div className="mb-5 drop-shadow-sm">
+          <CytoLensLogo size={96} animated />
+        </div>
+
+        {/* Wordmark */}
+        <h1
+          className="text-5xl font-extrabold tracking-tight mb-2"
+          style={{ color: '#0d9488' }}
+        >
+          CytoLens
+        </h1>
+        <p className="text-base text-gray-400 mb-10 tracking-wide">
+          See every cell clearly.
+        </p>
+
+        {/* Primary CTAs */}
+        <div className="flex gap-4 mb-8 w-full max-w-sm">
+          <button
+            className="flex-1 flex flex-col items-center gap-2.5 py-6 px-4 bg-white border-2 border-gray-200 rounded-2xl hover:border-teal-400 hover:shadow-lg transition-all group"
+            onClick={onOpenFile}
+          >
+            <span className="text-3xl group-hover:scale-110 transition-transform">📂</span>
+            <span className="text-sm font-bold text-gray-700">Open FCS File</span>
+            <span className="text-xs text-gray-400">FCS 3.0, 3.1, LMD</span>
+          </button>
+          <button
+            className="flex-1 flex flex-col items-center gap-2.5 py-6 px-4 rounded-2xl hover:shadow-lg transition-all group"
+            style={{ background: '#0d9488', border: '2px solid #0d9488' }}
+            onClick={onLoadDemo}
+          >
+            <span className="text-3xl group-hover:scale-110 transition-transform">🧪</span>
+            <span className="text-sm font-bold text-white">Load Demo Data</span>
+            <span className="text-xs" style={{ color: '#99f6e4' }}>PBMC · 50k events</span>
+          </button>
+        </div>
+
+        {/* Drag-drop zone */}
+        <div
+          className={`w-full max-w-sm border-2 border-dashed rounded-2xl p-5 text-center transition-all mb-10 ${
+            dragActive
+              ? 'border-teal-400 bg-teal-50 scale-[1.01]'
+              : 'border-gray-200 bg-white'
+          }`}
+        >
+          <div className="text-xl mb-1">{dragActive ? '📥' : '⬇'}</div>
+          <p className="text-sm text-gray-400">
+            {dragActive ? 'Drop to open' : 'Or drag & drop FCS files here'}
           </p>
-          <p className="text-xs text-gray-400">or use File → Open in the toolbar</p>
         </div>
-        <div className="mt-4 flex gap-2 justify-center text-xs text-gray-400">
-          <span className="px-2 py-0.5 bg-gray-100 rounded">FCS 3.0</span>
-          <span className="px-2 py-0.5 bg-gray-100 rounded">FCS 3.1</span>
-          <span className="px-2 py-0.5 bg-gray-100 rounded">LMD</span>
+
+        {/* Feature cards */}
+        <div className="grid grid-cols-3 gap-4 w-full">
+          {FEATURE_CARDS.map(card => (
+            <div
+              key={card.key}
+              className="flex flex-col items-center gap-2 p-4 bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow"
+            >
+              <div
+                className="w-10 h-10 rounded-full flex items-center justify-center"
+                style={{ background: '#f0fdfa' }}
+              >
+                <span style={{ color: '#0d9488', fontSize: '18px' }}>
+                  {card.key === 'webgl' ? '⚡' : card.key === 'import' ? '↕' : '◎'}
+                </span>
+              </div>
+              <span className="text-xs font-bold text-gray-700 text-center">{card.title}</span>
+              <span className="text-xs text-gray-400 text-center leading-relaxed">{card.desc}</span>
+            </div>
+          ))}
         </div>
+
+        {/* Keyboard hint */}
+        <p className="mt-8 text-xs text-gray-300 font-mono">
+          V select · P polygon · R rect · E ellipse · Ctrl+Z undo
+        </p>
+
       </div>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Right panel
+// ---------------------------------------------------------------------------
+
+const RightPanel: React.FC<{
+  channels: string[];
+  onExportPNG: () => void;
+  onExportCSV: () => void;
+}> = ({ channels, onExportPNG, onExportCSV }) => {
+  const selectedSample = useSelectedSample();
+  const selectedGate = useSelectedGate();
+  const gateResults = useExperimentStore(s => s.gateResults);
+  const selectedGateId = useExperimentStore(s => s.selectedGateId);
+  const updateGate = useExperimentStore(s => s.updateGate);
+  const gateResult = selectedGateId ? gateResults.get(selectedGateId) : undefined;
+
+  return (
+    <div className="flex flex-col h-full bg-white overflow-hidden">
+      <div className="px-3 py-2 border-b border-gray-100">
+        <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Properties</span>
+      </div>
+      <div className="flex-1 overflow-y-auto">
+        <ControlPanel
+          {...(selectedSample != null ? { selectedSample } : {})}
+          {...(selectedGate != null ? { selectedGate } : {})}
+          {...(gateResult != null ? { gateResult } : {})}
+          onGateColorChange={(id, color) => updateGate(id, { color })}
+          onGateNameChange={(id, name) => updateGate(id, { name })}
+        />
+        {!selectedSample && !selectedGate && (
+          <div className="px-4 py-6 text-xs text-gray-400 text-center">
+            Select a plot or gate<br />to see properties
+          </div>
+        )}
+      </div>
+      <div className="px-3 py-2 border-t border-gray-100 space-y-1">
+        <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Export</span>
+        <button
+          className="w-full text-xs py-1.5 px-2 rounded border border-gray-200 hover:bg-gray-50 text-gray-600 text-left mt-1"
+          onClick={onExportPNG}
+        >
+          📷 Export PNG
+        </button>
+        <button
+          className="w-full text-xs py-1.5 px-2 rounded border border-gray-200 hover:bg-gray-50 text-gray-600 text-left"
+          onClick={onExportCSV}
+        >
+          📊 Export CSV
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Status bar
+// ---------------------------------------------------------------------------
+
+const StatusBar: React.FC = () => {
+  const samples = useSampleList();
+  const isLoading = useExperimentStore(s => s.isLoading);
+  const loadError = useExperimentStore(s => s.loadError);
+  const totalEvents = samples.reduce((sum, s) => sum + s.eventCount, 0);
+
+  return (
+    <div className="h-6 flex items-center px-3 gap-4 bg-white border-t border-gray-100 flex-shrink-0">
+      <span className="text-xs text-gray-400">
+        {isLoading
+          ? '⌛ Loading…'
+          : `${samples.length} sample${samples.length !== 1 ? 's' : ''}`}
+      </span>
+      {totalEvents > 0 && (
+        <span className="text-xs text-gray-400">
+          {totalEvents.toLocaleString()} events
+        </span>
+      )}
+      {loadError && (
+        <span className="text-xs text-red-500 truncate">⚠ {loadError}</span>
+      )}
+      <div className="flex-1" />
+      <span className="text-xs text-gray-300">CytoLens v0.1.0</span>
     </div>
   );
 };
@@ -277,10 +438,13 @@ const WelcomeOverlay: React.FC<{ onDrop: (files: FileList) => void }> = ({ onDro
 // ---------------------------------------------------------------------------
 
 const App: React.FC = () => {
-  const leftPanelWidth = useUIStore(s => s.leftPanelWidth);
-  const rightPanelWidth = useUIStore(s => s.rightPanelWidth);
   const isLeftOpen = useUIStore(s => s.isLeftPanelOpen);
   const isRightOpen = useUIStore(s => s.isRightPanelOpen);
+  const leftPanelWidth = useUIStore(s => s.leftPanelWidth);
+  const rightPanelWidth = useUIStore(s => s.rightPanelWidth);
+  const setActiveTool = useUIStore(s => s.setActiveTool);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const samples = useSampleList();
   const gateRoots = useExperimentStore(s => s.gateRoots);
@@ -289,14 +453,51 @@ const App: React.FC = () => {
   const selectedGateId = useExperimentStore(s => s.selectedGateId);
   const selectSample = useExperimentStore(s => s.selectSample);
   const selectGate = useExperimentStore(s => s.selectGate);
-  const updateGate = useExperimentStore(s => s.updateGate);
   const loadFCSFile = useExperimentStore(s => s.loadFCSFile);
+  const loadDemoData = useExperimentStore(s => s.loadDemoData);
+  const removeGate = useExperimentStore(s => s.removeGate);
+  const worksheetLayout = useExperimentStore(s => s.worksheetLayout);
+  const setWorksheetLayout = useExperimentStore(s => s.setWorksheetLayout);
+  const experiment = useExperimentStore(s => s.experiment);
+  const computedStats = useExperimentStore(s => s.computedStats);
 
   const selectedSample = useSelectedSample();
-  const selectedGate = useSelectedGate();
-  const gateResult = selectedGateId ? gateResults.get(selectedGateId) : undefined;
 
-  const showWelcome = samples.length === 0;
+  const channelList = useMemo(() => {
+    if (!selectedSample?.metadata) return [];
+    return selectedSample.metadata.channels.map(c => c.name);
+  }, [selectedSample?.metadata]);
+
+  const hasData = samples.some(s => s.status === 'ready');
+
+  const eventMatrix = useMemo<EventMatrix | undefined>(() => {
+    if (!selectedSample || selectedSample.status !== 'ready' || !selectedSample.events || !selectedSample.metadata) {
+      return undefined;
+    }
+    return {
+      data: selectedSample.events,
+      channels: selectedSample.metadata.channels.map(c => c.name),
+      eventCount: selectedSample.eventCount,
+    };
+  }, [selectedSample]);
+
+  const allGates = useMemo(() => {
+    if (!experiment) return [];
+    return Array.from(experiment.gates.values());
+  }, [experiment]);
+
+  const handleOpenFile = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
+
+  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+    Array.from(files).forEach(f => {
+      if (f.name.match(/\.(fcs|lmd)$/i)) loadFCSFile(f);
+    });
+    e.target.value = '';
+  }, [loadFCSFile]);
 
   const handleDropFiles = useCallback((files: FileList) => {
     Array.from(files).forEach(f => {
@@ -305,9 +506,7 @@ const App: React.FC = () => {
   }, [loadFCSFile]);
 
   const handleGlobalDragOver = useCallback((e: React.DragEvent) => {
-    if (e.dataTransfer.types.includes('Files')) {
-      e.preventDefault();
-    }
+    if (e.dataTransfer.types.includes('Files')) e.preventDefault();
   }, []);
 
   const handleGlobalDrop = useCallback((e: React.DragEvent) => {
@@ -315,18 +514,104 @@ const App: React.FC = () => {
     if (e.dataTransfer.files.length > 0) handleDropFiles(e.dataTransfer.files);
   }, [handleDropFiles]);
 
+  // Undo: remove the most recently inserted gate
+  const handleUndo = useCallback(() => {
+    if (!experiment) return;
+    const gates = Array.from(experiment.gates.values());
+    if (gates.length === 0) return;
+    const lastGate = gates[gates.length - 1];
+    if (lastGate) removeGate(lastGate.id);
+  }, [experiment, removeGate]);
+
+  // Delete selected gate
+  const handleDeleteGate = useCallback(() => {
+    if (selectedGateId) removeGate(selectedGateId);
+  }, [selectedGateId, removeGate]);
+
+  // Escape: revert to select tool and deselect gate
+  const handleEscape = useCallback(() => {
+    setActiveTool('select');
+    // selectGate accepts string; passing empty string deselects
+    selectGate('');
+  }, [setActiveTool, selectGate]);
+
+  // Zoom stubs — delegate to UI store if zoom actions are present
+  const zoomIn = useCallback(() => {
+    const s = useUIStore.getState() as unknown as Record<string, unknown>;
+    if (typeof s['zoomIn'] === 'function') (s['zoomIn'] as () => void)();
+  }, []);
+  const zoomOut = useCallback(() => {
+    const s = useUIStore.getState() as unknown as Record<string, unknown>;
+    if (typeof s['zoomOut'] === 'function') (s['zoomOut'] as () => void)();
+  }, []);
+  const zoomReset = useCallback(() => {
+    const s = useUIStore.getState() as unknown as Record<string, unknown>;
+    if (typeof s['zoomReset'] === 'function') (s['zoomReset'] as () => void)();
+  }, []);
+
+  // Wire keyboard shortcuts
+  useKeyboardShortcuts({
+    onSelectTool: useCallback(() => setActiveTool('select'), [setActiveTool]),
+    onPolygonTool: useCallback(() => setActiveTool('polygon'), [setActiveTool]),
+    onRectangleTool: useCallback(() => setActiveTool('rectangle'), [setActiveTool]),
+    onEllipseTool: useCallback(() => setActiveTool('ellipse'), [setActiveTool]),
+    onDeleteGate: handleDeleteGate,
+    onUndo: handleUndo,
+    onOpenFile: handleOpenFile,
+    onLoadDemo: loadDemoData,
+    onEscape: handleEscape,
+    onZoomIn: zoomIn,
+    onZoomOut: zoomOut,
+    onZoomReset: zoomReset,
+  });
+
+  const handleExportPNG = useCallback(() => {
+    const canvas = document.querySelector<HTMLCanvasElement>('canvas');
+    if (!canvas) return;
+    const url = canvas.toDataURL('image/png');
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `cytolens-${Date.now()}.png`;
+    a.click();
+  }, []);
+
+  const handleExportCSV = useCallback(() => {
+    if (!computedStats || !selectedSample) return;
+    const multi = {
+      experimentId: experiment?.id ?? 'exp',
+      experimentName: experiment?.name ?? 'Experiment',
+      computedAt: new Date().toISOString(),
+      channels: computedStats.populations[0]?.channels.map(c => c.channel) ?? [],
+      samples: [{ ...computedStats, sampleLabel: selectedSample.label }],
+    };
+    const csv = statsToCSV(multi);
+    downloadCSV(csv, `${selectedSample.label}-stats.csv`);
+  }, [computedStats, selectedSample, experiment]);
+
   return (
     <div
       className="flex flex-col h-screen bg-gray-100 overflow-hidden"
       onDragOver={handleGlobalDragOver}
       onDrop={handleGlobalDrop}
     >
-      {/* Top toolbar */}
-      <Toolbar />
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".fcs,.lmd"
+        multiple
+        className="hidden"
+        onChange={handleFileChange}
+      />
 
-      {/* Three-panel body */}
+      <Toolbar
+        onOpenFile={handleOpenFile}
+        onLoadDemo={loadDemoData}
+        onExportPNG={handleExportPNG}
+        onExportCSV={handleExportCSV}
+        hasData={hasData}
+      />
+
       <div className="flex flex-1 overflow-hidden min-h-0">
-        {/* Left panel — workspace tree */}
         {isLeftOpen && (
           <div
             className="flex flex-col bg-white border-r border-gray-200 flex-shrink-0 overflow-hidden"
@@ -336,69 +621,46 @@ const App: React.FC = () => {
               samples={samples}
               gateRoots={gateRoots}
               gateResults={gateResults}
-              selectedSampleId={selectedSampleId ?? undefined}
-              selectedGateId={selectedGateId ?? undefined}
-              onSampleSelect={selectSample}
-              onGateSelect={selectGate}
+              {...(selectedSampleId != null ? { selectedSampleId } : {})}
+              {...(selectedGateId != null ? { selectedGateId } : {})}
+              onSampleSelect={id => selectSample(id)}
+              onGateSelect={id => selectGate(id)}
               className="flex-1"
             />
           </div>
         )}
 
-        {/* Centre — plot area */}
-        <div className="flex-1 relative min-w-0 overflow-hidden flex flex-col">
-          {showWelcome ? (
-            <WelcomeOverlay onDrop={handleDropFiles} />
-          ) : (
-            <PlotArea sample={selectedSample} />
-          )}
-        </div>
+        {hasData ? (
+          <WorksheetGrid
+            layout={worksheetLayout}
+            onLayoutChange={setWorksheetLayout}
+            {...(eventMatrix !== undefined ? { events: eventMatrix } : {})}
+            gates={allGates}
+            className="flex-1 min-w-0"
+          />
+        ) : (
+          <WelcomeScreen
+            onOpenFile={handleOpenFile}
+            onLoadDemo={loadDemoData}
+            onDrop={handleDropFiles}
+          />
+        )}
 
-        {/* Right panel — properties */}
         {isRightOpen && (
           <div
             className="flex flex-col bg-white border-l border-gray-200 flex-shrink-0 overflow-hidden"
             style={{ width: rightPanelWidth }}
           >
-            <ControlPanel
-              selectedSample={selectedSample ?? undefined}
-              selectedGate={selectedGate ?? undefined}
-              gateResult={gateResult}
-              onGateColorChange={(id, color) => updateGate(id, { color })}
-              onGateNameChange={(id, name) => updateGate(id, { name })}
-              className="flex-1"
+            <RightPanel
+              channels={channelList}
+              onExportPNG={handleExportPNG}
+              onExportCSV={handleExportCSV}
             />
           </div>
         )}
       </div>
 
-      {/* Status bar */}
       <StatusBar />
-    </div>
-  );
-};
-
-const StatusBar: React.FC = () => {
-  const samples = useSampleList();
-  const isLoading = useExperimentStore(s => s.isLoading);
-  const loadError = useExperimentStore(s => s.loadError);
-  const totalEvents = samples.reduce((sum, s) => sum + s.eventCount, 0);
-
-  return (
-    <div className="h-6 flex items-center px-3 gap-4 bg-white border-t border-gray-200 flex-shrink-0">
-      <span className="text-xs text-gray-400">
-        {isLoading ? '⌛ Loading…' : `${samples.length} sample${samples.length !== 1 ? 's' : ''}`}
-      </span>
-      {totalEvents > 0 && (
-        <span className="text-xs text-gray-400">
-          {totalEvents.toLocaleString()} events total
-        </span>
-      )}
-      {loadError && (
-        <span className="text-xs text-red-500 truncate">⚠ {loadError}</span>
-      )}
-      <div className="flex-1" />
-      <span className="text-xs text-gray-300">CytoLens v0.1.0</span>
     </div>
   );
 };
