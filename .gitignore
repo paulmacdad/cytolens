@@ -37,3 +37,7 @@ coverage/
 
 # Turbo
 .turbo/
+.env.*
+*.env
+*.pem
+*.key
