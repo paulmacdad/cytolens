@@ -585,7 +585,7 @@ const App: React.FC = () => {
       samples: [{ ...computedStats, sampleLabel: selectedSample.label }],
     };
     const csv = statsToCSV(multi);
-    downloadCSV(csv, `${selectedSample.label}-stats.csv`);
+    downloadCSV(`${selectedSample.label}-stats.csv`, csv);
   }, [computedStats, selectedSample, experiment]);
 
   return (
